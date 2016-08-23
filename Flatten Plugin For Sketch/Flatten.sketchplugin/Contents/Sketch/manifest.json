@@ -1,0 +1,117 @@
+{
+	"name": "Flatten", 
+	"description": "Flatten single or multiple layers instantly, create shared artboard styles, keep all of them updated like a boss and boost your Sketch documents’ performance.",
+    "lastUpdateNote": "- Sketch 3.9 fix.\n- Now artboard shared styles sync automatically after reflattening artboards.\n- New command: Toggle. You can toggle single or multiple flattened layers to edit them easily by selecting the group(s) and run the toggle command.",
+	"author": "Emin Inanc Unlu",
+	"homepage": "https://github.com/einancunlu/Flatten-Plugin-for-Sketch",
+    "version": 1.4,
+	"compatibleVersion": 3.4,
+    "identifier": "com.einancunlu.sketch-plugins.flatten",
+    "commands": [ 
+        {
+            "handler": "flatten",
+            "identifier": "flatten",
+            "name": "Flatten",
+			"shortcut" : "shift control f",
+            "script": "main.cocoascript" 
+        },
+        {
+            "handler": "toggleGroup", 
+            "identifier": "toggle",
+            "name": "Toggle",
+			"shortcut" : "shift control t",
+            "script": "main.cocoascript"
+        },
+        {
+            "handler": "flattenAll",
+            "identifier": "flattenAll",
+            "name": "Flatten All",
+			"shortcut" : "",
+            "script": "main.cocoascript"
+        },
+        {
+            "handler": "switchToImageMode",
+            "identifier": "switchToImageMode",
+            "name": "Image Mode",
+			"shortcut" : "",
+            "script": "main.cocoascript"
+        },
+        {
+            "handler": "switchToLayerMode",
+            "identifier": "switchToLayerMode",
+            "name": "Layer Mode",
+			"shortcut" : "",
+            "script": "main.cocoascript"
+        },
+        {
+            "handler": "selectSuggestedLayers",
+            "identifier": "selectSuggestedLayers",
+            "name": "Suggested Layers",
+			"shortcut" : "",
+            "script": "main.cocoascript"
+        },
+        {
+            "handler": "addFlattenTagToSelections",
+            "identifier": "addFlattenTagToSelections",
+            "name": "#Flatten",
+			"shortcut" : "",
+            "script": "main.cocoascript"
+        },
+        {
+            "handler": "addFlattenHiddenTagToSelections",
+            "identifier": "addFlattenHiddenTagToSelections",
+            "name": "#FlattenHidden",
+			"shortcut" : "",
+            "script": "main.cocoascript"
+        },
+        {
+            "handler": "help",
+            "identifier": "help",
+            "name": "Help / Guide", 
+			"shortcut" : "",
+            "script": "main.cocoascript"
+        },
+        {
+            "handler": "feedbackByMail",
+            "identifier": "feedbackByMail",
+            "name": "Mail", 
+			"shortcut" : "",
+            "script": "main.cocoascript"
+        },
+        {
+            "handler": "feedbackByTwitter",
+            "identifier": "feedbackByTwitter",
+            "name": "Twitter", 
+			"shortcut" : "",
+            "script": "main.cocoascript"
+        }
+    ],
+    "menu": { 
+		"title": "Flatten",
+        "items": [ 
+            "flatten",
+			"toggle", 
+			"flattenAll",
+			{
+				"title": "Add Tag",
+		        "items": [
+					"addFlattenTagToSelections",
+					"addFlattenHiddenTagToSelections"
+		        ]
+			}, 
+			"selectSuggestedLayers",     
+			"-",    
+			"switchToLayerMode",
+			"switchToImageMode", 
+			"-",    
+			"help",
+			{
+				"title": "Feedback / Contact",
+		        "items": [
+					"feedbackByMail",
+					"feedbackByTwitter"
+		        ]
+			}
+        ]
+    }
+}

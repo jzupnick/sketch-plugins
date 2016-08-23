@@ -1,0 +1,164 @@
+// Common library of things
+
+function setIconForAlert(context, alert) {
+  alert.setIcon(NSImage.alloc().initWithContentsOfFile(
+    context.plugin.urlForResourceNamed('icon.png').path()));
+}
+
+var keyPref = 'gitSketch';
+
+function getUserPreferences() {
+  var exportFolder = '.exportedArtboards';
+  var terminal = 'Terminal';
+  var diffByDefault = true;
+  try {
+    var prefs = NSUserDefaults.standardUserDefaults();
+    exportFolder = prefs.stringForKey(keyPref + 'exportFolder') || '.exportedArtboards';
+    terminal = prefs.stringForKey(keyPref + 'terminal') || 'Terminal';
+    diffByDefault = prefs.boolForKey(keyPref + 'diffByDefault');
+  } catch (e) {
+    log(e);
+  }
+  return {
+    exportFolder: exportFolder,
+    diffByDefault: diffByDefault,
+    terminal: terminal,
+  }
+}
+
+function exec(doc, command) {
+  var task = NSTask.alloc().init();
+  var pipe = NSPipe.pipe();
+  var errPipe = NSPipe.pipe();
+
+  var path = getCurrentDirectory(doc);
+  command = "cd \"" + path + "\" && " + command;
+
+  task.setLaunchPath_(@"/bin/bash");
+  task.setArguments_(NSArray.arrayWithObjects_("-c", "-l", command, nil));
+  task.setStandardOutput_(pipe);
+  task.setStandardError_(errPipe);
+  task.launch();
+
+  var data = errPipe.fileHandleForReading().readDataToEndOfFile();
+  if (data != nil && data.length())
+  {
+    var message = NSString.alloc().initWithData_encoding_(data, NSUTF8StringEncoding);
+    return NSException.raise_format_("failed", message);
+  }
+  data = pipe.fileHandleForReading().readDataToEndOfFile();
+  return NSString.alloc().initWithData_encoding_(data, NSUTF8StringEncoding);
+}
+
+function getCurrentDirectory(doc) {
+  return doc.fileURL().URLByDeletingLastPathComponent().path();
+}
+
+function getCurrentFileName(doc) {
+  return doc.fileURL().lastPathComponent();
+}
+
+var shared = {
+  getCurrentFileName: getCurrentFileName,
+  getCurrentDirectory: getCurrentDirectory,
+  exec: exec,
+  createInput: function(context, msg, okLabel, cancelLabel) {
+    var accessory = NSView.alloc().initWithFrame(NSMakeRect(0,0,300,50));
+    var input = NSTextField.alloc().initWithFrame(NSMakeRect(0,25,300,25));
+    input.editable = true;
+    accessory.addSubview(input);
+
+    var alert = NSAlert.alloc().init();
+    alert.setMessageText(msg);
+    alert.addButtonWithTitle(okLabel || 'OK');
+    alert.addButtonWithTitle(cancelLabel || 'Cancel');
+    setIconForAlert(context, alert);
+    alert.setAccessoryView(accessory);
+
+    var responseCode = alert.runModal();
+    var message = input.stringValue();
+
+    return {
+      responseCode: responseCode,
+      message: message,
+    };
+  },
+  createInputWithCheckbox: function(context, msg, checkboxMsg, checked, okLabel, cancelLabel) {
+    var accessory = NSView.alloc().initWithFrame(NSMakeRect(0,0,300,50));
+    var input = NSTextField.alloc().initWithFrame(NSMakeRect(0,25,300,25));
+    input.editable = true;
+    var checkbox = NSButton.alloc().initWithFrame(NSMakeRect(0,0,300,25));
+    checkbox.setButtonType(3);
+    checkbox.title = checkboxMsg;
+    checkbox.state = checked ? 1 : 0;
+    accessory.addSubview(input);
+    accessory.addSubview(checkbox);
+
+    var alert = NSAlert.alloc().init();
+    alert.setMessageText(msg);
+    alert.addButtonWithTitle(okLabel || 'OK');
+    alert.addButtonWithTitle(cancelLabel || 'Cancel');
+    setIconForAlert(context, alert);
+    alert.setAccessoryView(accessory);
+
+    var responseCode = alert.runModal();
+    var message = input.stringValue();
+
+    return {
+      responseCode: responseCode,
+      message: message,
+      checked: checkbox.state() == 1
+    };
+  },
+  createSelect: function(context, msg, items, selectedItemIndex, okLabel, cancelLabel) {
+    selectedItemIndex = selectedItemIndex || 0;
+
+    var accessory = NSComboBox.alloc().initWithFrame(NSMakeRect(0,0,200,25));
+    accessory.addItemsWithObjectValues(items);
+    accessory.selectItemAtIndex(selectedItemIndex);
+
+    var alert = NSAlert.alloc().init();
+    alert.setMessageText(msg);
+    alert.addButtonWithTitle(okLabel || 'OK');
+    alert.addButtonWithTitle(cancelLabel || 'Cancel');
+    setIconForAlert(context, alert);
+    alert.setAccessoryView(accessory);
+
+    var responseCode = alert.runModal();
+    var sel = accessory.indexOfSelectedItem();
+
+    return {
+      responseCode: responseCode,
+      index: sel
+    };
+  },
+  getCurrentBranch: function(doc) {
+    var path = getCurrentDirectory(doc);
+    var currentBranchCommand = NSString.stringWithFormat_("\\cd \"%@\" && \\git rev-parse --abbrev-ref HEAD", path);
+    var branch;
+    try {
+      branch = exec(doc, currentBranchCommand).split('\n')[0];
+    } catch (e) {
+      branch = 'master';
+    }
+    return branch;
+  },
+  exportArtboards: function(doc) {
+    var path = getCurrentDirectory(doc);
+    var currentFileName = getCurrentFileName(doc);
+    var currentFileNameWithoutExtension = currentFileName.replace(/\.sketch$/, '');
+    var preferences = getUserPreferences();
+    var command = NSString.stringWithFormat_("\\cd \"%@\" && mkdir -p \"%@\" && rm -rf \"%@/%@\" && mkdir \"%@/%@\" && %@/Contents/Resources/sketchtool/bin/sketchtool export artboards \"%@\" --output=\"%@/%@\" --overwriting=YES && git add \"%@\"", path, preferences.exportFolder, preferences.exportFolder, currentFileNameWithoutExtension, preferences.exportFolder, currentFileNameWithoutExtension, [[NSBundle mainBundle] bundlePath], currentFileName, preferences.exportFolder, currentFileNameWithoutExtension, preferences.exportFolder);
+    return exec(doc, command);
+  },
+  preferences: getUserPreferences,
+  setPreference: function(key, value) {
+    key = keyPref + key;
+    if (typeof value === "boolean") {
+      [[NSUserDefaults standardUserDefaults] setBool:value forKey:key]
+    } else {
+      [[NSUserDefaults standardUserDefaults] setObject:value forKey:key]
+    }
+    [[NSUserDefaults standardUserDefaults] synchronize]
+  }
+};

@@ -1,0 +1,193 @@
+var onRun = function(context) {
+  var app = NSApplication.sharedApplication()
+  var doc = context.document;
+  var dict = NSThread.mainThread().threadDictionary();
+  var keyDataDict = NSThread.mainThread().threadDictionary();
+
+  var page = [doc currentPage];
+  var artboards = [doc artboards];
+
+  var selection = context.selection
+  var selectionCount = [selection count]
+
+  if(showOptions()){
+    var data = loadFromURL(dict['syncSource']);
+    if(data){
+      storeData(data);
+      if(ChooseLanguage()){
+        doc.showMessage('Updating text fields...');
+        updateTextBoxes();
+        doc.showMessage('Sync completed!');
+        doc.reloadInspector();
+      } else {
+        doc.showMessage('Content Sync Canceled.');
+      }
+    } else {
+      doc.showMessage('Unable to fetch data.');
+    }
+  } else {
+    doc.showMessage('Content Sync Canceled.');
+  }
+
+  function updateTextBoxes(){
+    var message = 'Sync completed however the following errors occurred:\n'
+    var invalidKey = false;
+    var language = dict['syncLanguage'];
+    for (var i = 0; i < doc.pages().count(); i++) {
+      var page = doc.pages().objectAtIndex(i),
+        layers = page.children();
+      // Loop through all children of the page
+      for (var j = 0; j < layers.count(); j++) {
+        var layer = layers.objectAtIndex(j);
+        // Check if the layer is a text layer
+        if(layer.class() == "MSTextLayer") {
+          var layerName = [layer name];
+          var parts = layerName.split(':');
+          if(parts.length == 2){
+            var syncPart = parts[0];
+            var namePart = parts[1];
+            if(syncPart == "sync"){
+              var newValue = '';
+
+              // Now support `key+'constant'+key` concatenation
+              var keyParts = namePart.split('+');
+              for(var k = 0; k < keyParts.length; k++){
+                var keyValue = keyParts[k].replace(/^\s+|\s+$/g, '');
+                if(keyValue[0] == '\'' && keyValue[keyValue.length-1] == '\''){
+                  newValue += keyValue.substring(1, keyValue.length-1);
+                } else if(keyDataDict[keyValue]){
+                  var value = keyDataDict[keyValue][language];
+                  newValue += value;
+                } else {
+                  invalidKey = true;
+                  message += '\nInvalid Key: ' + keyValue + ' used in \'' + layerName + '\'';
+                }
+              }
+
+              // Only update if new text is not blank
+              if(newValue.length > 0){
+                newValue = newValue.replace(/\\n/g, '\n');
+                layer.stringValue = newValue;
+              }
+            }
+          }
+        }
+      }
+    }
+    if(invalidKey){
+      app.displayDialog_withTitle(message, "Invalid Key(s) Found");
+    }
+    return message;
+  }
+
+  function storeData(data){
+    var languages = [[NSMutableArray alloc] init];
+    var firstEntry = true;
+    for(var i = 0; i < data.length; i++){
+      var row = data[i];
+      var propkey = null;
+      var value = {};
+      for(var key in row) {
+        if(propkey == null){
+          propkey = row[key];
+        } else {
+          if(firstEntry){
+            [languages addObject:key];
+          }
+          value[key] = row[key];
+        }
+      }
+      firstEntry = false;
+      keyDataDict[propkey] = value;
+    }
+    dict['syncLanguages'] = languages;
+  }
+
+  function loadFromURL(queryURL) {
+    doc.showMessage('Sync starting...');
+    var data = null;
+    if(queryURL.indexOf("google.com") > -1) {
+      var sheetID=queryURL.substring(queryURL.lastIndexOf("/d/")+3,queryURL.lastIndexOf("/"));
+      queryURL = "https://spreadsheets.google.com/feeds/list/" + sheetID + "/1/public/values?alt=json";
+      data = request(queryURL);
+      try {
+        data = JSON.parse(data);
+        data = parseSheetsData(data);
+      } catch(e){
+        data = null;
+      }
+    } else {
+      data = request(queryURL);
+      data = JSON.parse(data);  
+    }
+    return data;
+  }
+
+  function request(queryURL) {
+    var request = NSMutableURLRequest.new();
+    [request setHTTPMethod:@"GET"];
+    [request setURL:[NSURL URLWithString:queryURL]];
+    var error = NSError.new();
+    var responseCode = null;
+    var oResponseData = [NSURLConnection sendSynchronousRequest:request returningResponse:responseCode error:error];
+    var dataString = [[NSString alloc] initWithData:oResponseData encoding:NSUTF8StringEncoding];
+    return dataString;
+  }
+
+  function parseSheetsData(data) {
+    var result = [];
+    var items = data.feed.entry;
+    for(var i=0; i<items.length; i++) {
+      var item = items[i];
+      var resultItem = {}
+      for(var key in item) {
+        var attr = key.split('gsx$')[1];
+        if(!attr) { continue; }
+        attr = capitalize(attr);
+        resultItem[attr] = item[key]['$t'];
+      }
+      result.push(resultItem);
+    }
+    return result;
+  }
+
+  function showOptions() {
+    var alert = [NSAlert alertWithMessageText: "Sync Google Document Text"
+                                   defaultButton:"Sync"
+                                 alternateButton:"Cancel"
+                                     otherButton:nil
+                       informativeTextWithFormat:"Enter the URL where your text lives."];
+
+    var input = [[NSTextField alloc] initWithFrame:NSMakeRect(0, 0, 300, 54)];
+    input.setStringValue(dict['syncSource'] || "https://docs.google.com/spreadsheets/...");
+    alert.setAccessoryView(input);
+    var button = alert.runModal();
+    input.validateEditing();
+    dict['syncSource'] = input.stringValue();
+    return button;
+  }
+
+  function ChooseLanguage(){
+    var languages = dict['syncLanguages'];
+    var alert = [NSAlert alertWithMessageText: "Sync Content Version"
+                                   defaultButton:"Sync"
+                                 alternateButton:"Cancel"
+                                     otherButton:nil
+                       informativeTextWithFormat:"Select which content version to use:"];
+
+    var input = [[NSComboBox alloc] initWithFrame:NSMakeRect(0, 0, 300, 54)];
+    for(var i = 0; i < [languages count]; ++i){
+      [input addItemWithObjectValue:languages[i]];
+    }
+    input.setStringValue(dict['syncLanguage'] || languages[0]);
+    alert.setAccessoryView(input);
+    var button = alert.runModal();
+    input.validateEditing();
+    dict['syncLanguage'] = input.stringValue();
+    return button;
+  }
+
+  function capitalize(string) {
+    return string.charAt(0).toUpperCase() + string.slice(1);
+  }
+}

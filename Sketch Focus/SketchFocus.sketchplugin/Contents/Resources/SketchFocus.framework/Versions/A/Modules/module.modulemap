@@ -1,0 +1,6 @@
+framework module SketchFocus {
+  umbrella header "SketchFocus.h"
+
+  export *
+  module * { export * }
+}

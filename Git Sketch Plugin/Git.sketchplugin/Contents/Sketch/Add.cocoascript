@@ -1,0 +1,15 @@
+// Add this file to the repo
+
+@import 'shared.cocoascript'
+
+var onRun = function(context) {
+  var doc = context.document;
+  try {
+    var currentFileName = shared.getCurrentFileName(doc);
+    var command = "git add \"" + currentFileName + "\"";
+    var message = shared.exec(doc, command);
+    doc.showMessage("File added to git");
+  } catch(e) {
+    NSApplication.sharedApplication().displayDialog_withTitle_(e, "Failed...");
+  }
+}
